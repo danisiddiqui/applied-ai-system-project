@@ -1,3 +1,8 @@
-pandas
-pytest
-streamlit
+google-genai>=1.0.0
+python-dotenv>=1.0.0
+pytest>=7.0
+
+# CA bundle, transitive. Pinned forward past the revoked emSign intermediates,
+# so a cached older wheel can't satisfy this file. google-genai verifies its
+# HTTPS calls against it.
+certifi>=2026.10.19
