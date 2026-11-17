@@ -1,0 +1,39 @@
+flowchart TD
+    U([👤 User types a request<br/>e.g. 'chill acoustic songs for studying']) --> G1
+
+    subgraph PIPE["MusicRecs AI pipeline (src/assistant.py)"]
+        G1{"🛡️ Input guardrail<br/>check_request()<br/>empty · >300 chars · prompt injection"}
+        P["🧠 Parser<br/>parse_request()<br/>Gemini → JSON profile<br/>(keyword parser if no key / bad JSON)"]
+        V1{"🛡️ Output validation<br/>validate_profile()<br/>known genres/moods only · energy clamped 0–1"}
+        R["🔎 Retriever<br/>recommend_songs() + score_song()<br/>scores all 20 songs, keeps top-k with score > 0"]
+        C["📊 Confidence scorer<br/>confidence_score()<br/>request coverage + match strength"]
+        GEN["✍️ Generator<br/>Gemini writes the answer using ONLY<br/>the retrieved songs (RAG prompt)"]
+        VER{"✅ Verifier<br/>verify_answer()<br/>any song NOT retrieved?"}
+        T["📄 Safe template answer<br/>template_answer()"]
+    end
+
+    DB[("🎵 data/songs.csv<br/>20 songs")] --> R
+    G1 -- "blocked" --> OUT
+    G1 -- "ok" --> P --> V1
+    V1 -- "nothing recognized" --> CLAR["❓ Ask user to clarify"]
+    V1 -- "profile" --> R --> C --> GEN
+    GEN --> VER
+    VER -- "hallucination: retry once" --> GEN
+    VER -- "passes" --> OUT
+    VER -- "fails twice / API error / offline" --> T --> OUT
+    C -- "confidence < 0.5" --> WARN["⚠️ Low-confidence warning"]
+    WARN --> OUT
+    OUT([📤 Answer + ranked songs + reasons + confidence])
+    OUT --> H["👤 Human-in-the-loop<br/>user refines the request if results or confidence are off"]
+    CLAR --> H
+    H -.-> U
+
+    LOG[["📝 logs/musicrecs.log<br/>every step logged"]]
+    PIPE -.-> LOG
+
+    subgraph TEST["Reliability testing"]
+        PY["🧪 pytest (29 tests)<br/>FakeLLM: hallucination, bad JSON, API errors"]
+        EV["📋 src/evaluate.py<br/>14-case test set · pass/fail · run-twice consistency · avg confidence"]
+    end
+    TEST -.-> PIPE
+    EV --> REP[["evidence/eval_results.md"]]
